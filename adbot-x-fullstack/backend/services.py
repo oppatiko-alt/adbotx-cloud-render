@@ -104,12 +104,14 @@ class TTSService:
         self._api_key = settings.elevenlabs_api_key
         self._voice_id = settings.elevenlabs_voice_id
         self._model_id = settings.tts_model_id
+        self._edge_voice = settings.edge_tts_voice
+        self._edge_rate = settings.edge_tts_rate
 
-    async def synthesize(self, text: str) -> bytes:
-        if not self._api_key or not self._voice_id:
+    async def _synthesize_elevenlabs(self, text: str, voice_id: str) -> bytes:
+        if not self._api_key or not voice_id:
             return b""
 
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self._voice_id}/stream"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
         headers = {
             "Accept": "audio/mpeg",
             "Content-Type": "application/json",
@@ -137,5 +139,40 @@ class TTSService:
                     chunks = [chunk async for chunk in response.aiter_bytes()]
                     return b"".join(chunks)
         except Exception as exc:  # pragma: no cover - network/provider errors
-            logger.exception("TTS error: %s", exc)
+            logger.exception("ElevenLabs TTS error: %s", exc)
             return b""
+
+    async def _synthesize_edge_tts(self, text: str) -> bytes:
+        try:
+            import edge_tts
+        except Exception as exc:  # pragma: no cover - optional dependency import errors
+            logger.exception("Edge TTS import error: %s", exc)
+            return b""
+
+        try:
+            communicator = edge_tts.Communicate(
+                text=text,
+                voice=self._edge_voice,
+                rate=self._edge_rate,
+            )
+            audio = bytearray()
+            async for chunk in communicator.stream():
+                if chunk.get("type") == "audio":
+                    audio.extend(chunk.get("data", b""))
+            return bytes(audio)
+        except Exception as exc:  # pragma: no cover - provider/network errors
+            logger.exception("Edge TTS error: %s", exc)
+            return b""
+
+    async def synthesize(self, text: str, voice_id: Optional[str] = None) -> bytes:
+        normalized_text = (text or "").strip()
+        if not normalized_text:
+            return b""
+
+        selected_voice = (voice_id or self._voice_id or "").strip()
+        elevenlabs_audio = await self._synthesize_elevenlabs(normalized_text, selected_voice)
+        if elevenlabs_audio:
+            return elevenlabs_audio
+
+        logger.warning("Falling back to Edge TTS voice: %s", self._edge_voice)
+        return await self._synthesize_edge_tts(normalized_text)

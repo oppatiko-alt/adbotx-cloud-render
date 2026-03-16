@@ -40,7 +40,7 @@ SECURITY_BLACKLIST = {
     "illegal",
     "yasadisi",
 }
-BLOCKED_MESSAGE = "Bu konuda su an yorum yapamam."
+BLOCKED_MESSAGE = "Bu konuda şu an yorum yapamam."
 ALLOWED_EMOTIONS = {"happy", "neutral", "angry", "sad"}
 ALLOWED_AGE_RANGES = {"18-25", "25-40", "40+", "unknown"}
 ALLOWED_GENDERS = {"male", "female", "unknown"}

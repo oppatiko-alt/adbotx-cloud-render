@@ -3,6 +3,7 @@ import { SimliClient } from 'simli-client';
 import PerceptionService from './perception';
 
 const BACKEND_URL_STORAGE_KEY = 'adbotx.backend_url';
+const DEFAULT_CLOUD_BACKEND_URL = 'https://adbotx-cloud-render.onrender.com';
 
 const normalizeBackendUrl = (value) => {
   const raw = (value || '').trim();
@@ -49,7 +50,7 @@ const resolveBackendUrl = () => {
     }
   }
 
-  return '';
+  return normalizeBackendUrl(DEFAULT_CLOUD_BACKEND_URL);
 };
 
 const isMobileDevice = () => {
@@ -100,6 +101,7 @@ function App() {
   const [micActive, setMicActive] = useState(false);
   const [perception, setPerception] = useState(null);
   const [activeAvatar, setActiveAvatar] = useState('');
+  const [avatarFullscreen, setAvatarFullscreen] = useState(false);
   const [deviceProfile] = useState(() => ({
     isMobile: isMobileDevice(),
     isLowPower: isLowPowerDevice(),
@@ -224,7 +226,7 @@ function App() {
       setError(null);
     } catch (err) {
       setConfig(null);
-      setError('Sunucuya baglanilamadi. Backend URL kontrol et');
+      setError('Sunucuya bağlanılamadı. Backend URL kontrol et');
     }
   };
 
@@ -483,7 +485,7 @@ function App() {
     };
     
     ws.onerror = () => {
-      setError('Ses tanima baglanti hatasi');
+      setError('Ses tanıma bağlantı hatası');
     };
     
     ws.onclose = () => {
@@ -567,16 +569,16 @@ function App() {
     } catch (err) {
       console.error('Mic error:', err);
       if (err?.message === 'secure_context_required') {
-        setError('Mikrofon ve kamera icin HTTPS gerekli');
+        setError('Mikrofon ve kamera için HTTPS gerekli');
       } else if (err?.message === 'backend_url_missing') {
-        setError('Once cloud backend URL gir');
+        setError('Önce cloud backend URL gir');
       } else if (
         err?.message === 'media_devices_unavailable' ||
         err?.message === 'media_recorder_not_supported'
       ) {
-        setError('Bu cihazda canli ses kaydi desteklenmiyor');
+        setError('Bu cihazda canlı ses kaydı desteklenmiyor');
       } else {
-        setError('Mikrofon erisimi reddedildi');
+        setError('Mikrofon erişimi reddedildi');
       }
       micEnabledRef.current = false;
       setMicActive(false);
@@ -797,7 +799,7 @@ function App() {
   const applyBackendUrl = () => {
     const normalized = normalizeBackendUrl(backendInput);
     if (!normalized || !/^https?:\/\//i.test(normalized)) {
-      setError('Gecerli bir backend URL gir. Ornek: https://api.domain.com');
+      setError('Geçerli bir backend URL gir. Örnek: https://api.domain.com');
       return;
     }
 
@@ -834,6 +836,32 @@ function App() {
     setError('Cloud backend URL girmen gerekiyor');
   };
 
+  const toggleAvatarFullscreen = async () => {
+    if (avatarFullscreen) {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen().catch(() => undefined);
+      }
+      setAvatarFullscreen(false);
+      return;
+    }
+
+    setAvatarFullscreen(true);
+    const rootEl = document.documentElement;
+    if (rootEl?.requestFullscreen) {
+      await rootEl.requestFullscreen().catch(() => undefined);
+    }
+  };
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setAvatarFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
   const handlePointerMove = (event) => {
     const point = event.touches?.[0] || event;
     if (!point) return;
@@ -868,13 +896,13 @@ function App() {
   const getStateText = () => {
     switch (state) {
       case STATES.LISTENING:
-        return 'DÃ„Â°NLÃ„Â°YOR...';
+        return 'DİNLİYOR...';
       case STATES.THINKING:
-        return 'DÃƒÅ“Ã…ÂÃƒÅ“NÃƒÅ“YOR...';
+        return 'DÜŞÜNÜYOR...';
       case STATES.SPEAKING:
-        return 'KONUÃ…ÂUYOR...';
+        return 'KONUŞUYOR...';
       default:
-        return micActive ? 'DINLEMEYE HAZIR' : 'BASLATMAK ICIN TIKLAYIN';
+        return micActive ? 'DİNLEMEYE HAZIR' : 'BAŞLATMAK İÇİN TIKLAYIN';
     }
   };
 
@@ -882,13 +910,13 @@ function App() {
     if (!perception?.emotion) return null;
     const labels = {
       happy: 'mutlu',
-      angry: 'kÃ„Â±zgÃ„Â±n',
-      sad: 'ÃƒÂ¼zgÃƒÂ¼n',
-      neutral: 'nÃƒÂ¶tr',
+      angry: 'kızgın',
+      sad: 'üzgün',
+      neutral: 'nötr',
       stressed: 'stresli',
     };
     const label = labels[perception.emotion] || perception.emotion;
-    return `yÃƒÂ¼z algÃ„Â±landÃ„Â±: ${label}`;
+    return `Yüz algılandı: ${label}`;
   };
   
   return (
@@ -901,135 +929,162 @@ function App() {
     >
       {/* Particle Canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 z-0" />
+
+      <button
+        type="button"
+        onClick={toggleAvatarFullscreen}
+        className="absolute right-3 top-3 z-20 rounded-full border border-white/30 bg-black/60 px-3 py-1 text-[10px] uppercase tracking-widest text-white/80"
+      >
+        {avatarFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
+      </button>
       
       {/* Main Content */}
-      <div className="relative z-10 min-h-[100dvh] w-full flex flex-col items-center justify-between px-4 py-4 md:py-8">
-        
-        {/* Top - Logo */}
-        <div className="text-center">
-          <h1 className="text-white/30 text-xs font-extralight tracking-[0.3em]">ANOMAL.HOUSE</h1>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowBackendEditor((prev) => !prev)}
-              className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
-                backendUrl
-                  ? 'border-emerald-400/70 text-emerald-300 bg-emerald-500/10'
-                  : 'border-amber-400/70 text-amber-300 bg-amber-500/10'
-              }`}
-            >
-              {backendUrl ? 'Backend Ready' : 'Set Backend'}
-            </button>
-            {backendUrl && (
+      <div
+        className={`relative z-10 min-h-[100dvh] w-full flex flex-col items-center ${
+          avatarFullscreen ? 'justify-center px-0 py-0' : 'justify-between px-4 py-4 md:py-8'
+        }`}
+      >
+        {!avatarFullscreen && (
+          <div className="text-center">
+            <h1 className="text-white/30 text-xs font-extralight tracking-[0.3em]">ANOMAL.HOUSE</h1>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={clearBackendUrl}
-                className="px-3 py-1 rounded-full border border-white/20 text-[10px] uppercase tracking-widest text-white/60 hover:text-white/80 hover:border-white/40"
+                onClick={() => setShowBackendEditor((prev) => !prev)}
+                className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
+                  backendUrl
+                    ? 'border-emerald-400/70 text-emerald-300 bg-emerald-500/10'
+                    : 'border-amber-400/70 text-amber-300 bg-amber-500/10'
+                }`}
               >
-                Clear URL
+                {backendUrl ? 'Backend Hazır' : 'Backend Ayarla'}
               </button>
-            )}
-          </div>
-          {showBackendEditor && (
-            <div className="mt-3 mx-auto w-full max-w-lg rounded-lg border border-white/15 bg-black/45 p-3">
-              <input
-                value={backendInput}
-                onChange={(event) => setBackendInput(event.target.value)}
-                placeholder="https://api.senin-domain.com"
-                className="w-full rounded bg-black/60 border border-white/20 px-3 py-2 text-xs text-white outline-none focus:border-[#c3144d]"
-              />
-              <div className="mt-2 flex justify-center gap-2">
+              {backendUrl && (
                 <button
                   type="button"
-                  onClick={applyBackendUrl}
-                  className="px-3 py-1 rounded border border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10 text-[10px] uppercase tracking-widest"
+                  onClick={clearBackendUrl}
+                  className="px-3 py-1 rounded-full border border-white/20 text-[10px] uppercase tracking-widest text-white/60 hover:text-white/80 hover:border-white/40"
                 >
-                  Save URL
+                  URL Temizle
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBackendEditor(false)}
-                  className="px-3 py-1 rounded border border-white/20 text-white/60 text-[10px] uppercase tracking-widest hover:text-white/80 hover:border-white/40"
-                >
-                  Close
-                </button>
-              </div>
+              )}
             </div>
-          )}
-          {backendUrl ? (
-            <p className="mt-2 text-[10px] tracking-wide text-white/35 break-all">
-              {backendUrl}
-            </p>
-          ) : (
-            <p className="mt-2 text-[10px] tracking-wide text-amber-300/70">
-              Cloud backend URL zorunlu
-            </p>
-          )}
-          {Object.keys(config?.avatar_profiles || {}).length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              {Object.keys(config.avatar_profiles).map((avatarName) => {
-                const isActive = activeAvatar === avatarName;
-                return (
+            {showBackendEditor && (
+              <div className="mt-3 mx-auto w-full max-w-lg rounded-lg border border-white/15 bg-black/45 p-3">
+                <input
+                  value={backendInput}
+                  onChange={(event) => setBackendInput(event.target.value)}
+                  placeholder="https://adbotx-cloud-render.onrender.com"
+                  className="w-full rounded bg-black/60 border border-white/20 px-3 py-2 text-xs text-white outline-none focus:border-[#c3144d]"
+                />
+                <div className="mt-2 flex justify-center gap-2">
                   <button
-                    key={avatarName}
                     type="button"
-                    onClick={() => setActiveAvatar(avatarName)}
-                    className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
-                      isActive
-                        ? 'border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10'
-                        : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
-                    }`}
+                    onClick={applyBackendUrl}
+                    className="px-3 py-1 rounded border border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10 text-[10px] uppercase tracking-widest"
                   >
-                    {avatarName}
+                    URL Kaydet
                   </button>
-                );
-              })}
+                  <button
+                    type="button"
+                    onClick={() => setShowBackendEditor(false)}
+                    className="px-3 py-1 rounded border border-white/20 text-white/60 text-[10px] uppercase tracking-widest hover:text-white/80 hover:border-white/40"
+                  >
+                    Kapat
+                  </button>
+                </div>
+              </div>
+            )}
+            {backendUrl ? (
+              <p className="mt-2 text-[10px] tracking-wide text-white/35 break-all">
+                {backendUrl}
+              </p>
+            ) : (
+              <p className="mt-2 text-[10px] tracking-wide text-amber-300/70">
+                Cloud backend URL zorunlu
+              </p>
+            )}
+            {Object.keys(config?.avatar_profiles || {}).length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-[10px] uppercase tracking-widest text-white/40">Kişi Seç</p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {Object.keys(config.avatar_profiles).map((avatarName) => {
+                    const isActive = activeAvatar === avatarName;
+                    return (
+                      <button
+                        key={avatarName}
+                        type="button"
+                        onClick={() => setActiveAvatar(avatarName)}
+                        className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
+                          isActive
+                            ? 'border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10'
+                            : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
+                        }`}
+                      >
+                        {avatarName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setLowPowerMode((prev) => !prev)}
+                className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
+                  lowPowerMode
+                    ? 'border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10'
+                    : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
+                }`}
+              >
+                {lowPowerMode ? 'Düşük Güç' : 'Tam Güç'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPerceptionEnabled((prev) => !prev)}
+                className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
+                  perceptionEnabled
+                    ? 'border-cyan-400/70 text-cyan-300 bg-cyan-400/10'
+                    : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
+                }`}
+              >
+                {perceptionEnabled ? 'Yüz Algısı Açık' : 'Yüz Algısı Kapalı'}
+              </button>
             </div>
-          )}
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setLowPowerMode((prev) => !prev)}
-              className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
-                lowPowerMode
-                  ? 'border-[#c3144d] text-[#c3144d] bg-[#c3144d]/10'
-                  : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
-              }`}
-            >
-              {lowPowerMode ? 'Low Power' : 'Full Power'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPerceptionEnabled((prev) => !prev)}
-              className={`px-3 py-1 rounded-full border text-[10px] uppercase tracking-widest transition-colors ${
-                perceptionEnabled
-                  ? 'border-cyan-400/70 text-cyan-300 bg-cyan-400/10'
-                  : 'border-white/20 text-white/50 hover:text-white/80 hover:border-white/40'
-              }`}
-            >
-              {perceptionEnabled ? 'Face Sense On' : 'Face Sense Off'}
-            </button>
           </div>
-        </div>
+        )}
         
         {/* Center - Avatar */}
-        <div className="flex-1 flex flex-col items-center justify-center">
-          {perception && (
+        <div
+          className={`flex-1 flex flex-col items-center justify-center ${
+            avatarFullscreen ? 'w-full h-[100dvh]' : ''
+          }`}
+        >
+          {perception && !avatarFullscreen && (
             <div className="mb-3 text-xs font-extralight tracking-wider text-cyan-400/70">
               {getPerceptionText()}
             </div>
           )}
           <div className="relative">
             {/* Tech frame */}
-            <div className="absolute -inset-4 border border-white/10 rounded-lg">
-              <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#c3144d]/30" />
-              <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[#c3144d]/30" />
-              <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-[#c3144d]/30" />
-              <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-[#c3144d]/30" />
-            </div>
+            {!avatarFullscreen && (
+              <div className="absolute -inset-4 border border-white/10 rounded-lg">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#c3144d]/30" />
+                <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[#c3144d]/30" />
+                <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-[#c3144d]/30" />
+                <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-[#c3144d]/30" />
+              </div>
+            )}
             
             {/* Video container */}
-            <div className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-80 md:h-80 bg-black/50 rounded overflow-hidden">
+            <div
+              className={`relative overflow-hidden ${
+                avatarFullscreen
+                  ? 'w-[100vw] h-[100dvh] rounded-none bg-black'
+                  : 'w-56 h-56 sm:w-64 sm:h-64 md:w-80 md:h-80 bg-black/50 rounded'
+              }`}
+            >
               <video
                 ref={videoRef}
                 autoPlay
@@ -1047,29 +1102,36 @@ function App() {
             </div>
           </div>
           
-          {/* Name & Title - below avatar */}
-          <div className="mt-6 text-center">
-            <div className="text-white/80 font-light text-lg tracking-wide">
-              {activeAvatar || config?.character_name || 'AI'}
-            </div>
-            <div className="text-white/50 text-xs font-extralight tracking-widest mt-1">ALGORÃ„Â°TMA KIRICI</div>
-          </div>
-          
-          {/* Response text - below name */}
-          {response && (
-            <div className="mt-6 max-w-lg px-4">
-              <p className="text-white/70 text-sm font-light text-center leading-relaxed">
-                "{response}"
-              </p>
-            </div>
+          {!avatarFullscreen && (
+            <>
+              {/* Name & Title - below avatar */}
+              <div className="mt-6 text-center">
+                <div className="text-white/80 font-light text-lg tracking-wide">
+                  {activeAvatar || config?.character_name || 'AI'}
+                </div>
+                <div className="text-white/50 text-xs font-extralight tracking-widest mt-1">
+                  ALGORITMA KIRICI
+                </div>
+              </div>
+
+              {/* Response text - below name */}
+              {response && (
+                <div className="mt-6 max-w-lg px-4">
+                  <p className="text-white/70 text-sm font-light text-center leading-relaxed">
+                    "{response}"
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
         
         {/* Bottom - Microphone & Status */}
-        <div className="w-full max-w-md px-2 sm:px-4 space-y-4">
+        {!avatarFullscreen && (
+          <div className="w-full max-w-md px-2 sm:px-4 space-y-4">
           {deviceProfile.isMobile && !perceptionEnabled && (
             <p className="text-center text-[10px] text-white/35 tracking-wide">
-              Mobile profile: face perception is off for battery/performance.
+              Mobil profil: yüz algısı batarya ve performans için kapalı.
             </p>
           )}
           
@@ -1125,7 +1187,8 @@ function App() {
           {error && (
             <div className="text-center text-red-400/80 text-xs font-light">{error}</div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

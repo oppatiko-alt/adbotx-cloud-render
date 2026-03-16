@@ -39,6 +39,8 @@ class SessionContext:
     cancel_event: Optional[asyncio.Event] = None
     perception: Optional[dict] = None
     perception_last_seen: Optional[datetime] = None
+    active_avatar: Optional[str] = None
+    identified_person: Optional[str] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def new_cancel_event(self) -> asyncio.Event:

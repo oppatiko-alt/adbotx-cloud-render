@@ -17,7 +17,31 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         sync: false
+      - key: ELEVENLABS_VOICE_ID_ALI
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_TOPRAK
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_MUSTAFA
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_RASIT
+        sync: false
+      - key: ELEVENLABS_VOICE_ID_YASIN
+        sync: false
       - key: SIMLI_API_KEY
         sync: false
       - key: SIMLI_FACE_ID
         sync: false
+      - key: SIMLI_FACE_ID_ALI
+        sync: false
+      - key: SIMLI_FACE_ID_TOPRAK
+        sync: false
+      - key: SIMLI_FACE_ID_MUSTAFA
+        sync: false
+      - key: SIMLI_FACE_ID_RASIT
+        sync: false
+      - key: SIMLI_FACE_ID_YASIN
+        sync: false
+      - key: EDGE_TTS_VOICE
+        value: "tr-TR-AhmetNeural"
+      - key: EDGE_TTS_RATE
+        value: "+0%"

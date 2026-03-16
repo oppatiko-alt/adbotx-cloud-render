@@ -5,6 +5,23 @@ import PerceptionService from './perception';
 const BACKEND_URL_STORAGE_KEY = 'adbotx.backend_url';
 const DEFAULT_CLOUD_BACKEND_URL = 'https://adbotx-cloud-render.onrender.com';
 const CONFIG_RETRY_INTERVAL_MS = 8000;
+const FETCH_TIMEOUT_MS = 12000;
+
+const FALLBACK_APP_CONFIG = {
+  deepgram_api_key: 'e41ab1fc872267548b372a5089e6f217ba1429fa',
+  elevenlabs_voice_id: 'WQpUMfDKeYdexqoyFWPB',
+  simli_api_key: 'uuy2gc7jzplifwhw1rkh',
+  simli_face_id: '2ae10865-bda5-41dd-acc5-42f91376a7cb',
+  avatar_profiles: {
+    'Ali Aydın': { simli_face_id: 'd57d60f9-bc59-46a1-b67f-3482ee37b4bb' },
+    'Toprak Mert Yürekli': { simli_face_id: '2ae10865-bda5-41dd-acc5-42f91376a7cb' },
+    'Mustafa Göçmezler': { simli_face_id: '55634f69-ca72-4ec7-bf0f-74c4af16bb6c' },
+    'Ali Raşit Sipahi': { simli_face_id: 'c118e7ae-9135-439e-a083-b32a60222f88' },
+    Yasin: { simli_face_id: '2ae10865-bda5-41dd-acc5-42f91376a7cb' },
+  },
+  character_name: 'Ali Aydın',
+  character_title: 'Kıdemli Yazılım Mühendisi | AI Agent Uzmanı',
+};
 
 const normalizeBackendUrl = (value) => {
   const raw = (value || '').trim();
@@ -86,6 +103,20 @@ const pickAudioMimeType = () => {
     'audio/ogg;codecs=opus',
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+};
+
+const fetchJsonWithTimeout = async (url, timeoutMs = FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`http_${response.status}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 const INITIAL_BACKEND_URL = resolveBackendUrl();
@@ -221,11 +252,7 @@ function App() {
 
     configLoadingRef.current = true;
     try {
-      const res = await fetch(`${API}/config`);
-      if (!res.ok) {
-        throw new Error(`config_http_${res.status}`);
-      }
-      const data = await res.json();
+      const data = await fetchJsonWithTimeout(`${API}/config`);
       setConfig(data);
       const profileNames = Object.keys(data?.avatar_profiles || {});
       if (profileNames.length > 0) {
@@ -253,6 +280,22 @@ function App() {
         setError('Backend URL varsayılana alındı, tekrar bağlanılıyor...');
         return;
       }
+
+      try {
+        const health = await fetchJsonWithTimeout(`${API}/health`, 7000);
+        if (health?.status === 'healthy') {
+          setConfig(FALLBACK_APP_CONFIG);
+          const profileNames = Object.keys(FALLBACK_APP_CONFIG.avatar_profiles || {});
+          if (profileNames.length > 0) {
+            setActiveAvatar((prev) => prev || profileNames[0]);
+          }
+          setError('Config gecikiyor, fallback ile devam ediliyor...');
+          return;
+        }
+      } catch {
+        // Keep the user-facing error below.
+      }
+
       setError('Sunucuya bağlanılamadı. Otomatik yeniden deneniyor...');
     } finally {
       configLoadingRef.current = false;

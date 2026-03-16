@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: adbotx-backend
+    runtime: python
+    rootDir: adbot-x-fullstack/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: SIMLI_API_KEY
+        sync: false
+      - key: SIMLI_FACE_ID
+        sync: false

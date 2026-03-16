@@ -9,7 +9,8 @@ const CONFIG_RETRY_INTERVAL_MS = 8000;
 const normalizeBackendUrl = (value) => {
   const raw = (value || '').trim();
   if (!raw) return '';
-  return raw.replace(/\/+$/, '');
+  const withoutTrailingSlash = raw.replace(/\/+$/, '');
+  return withoutTrailingSlash.replace(/\/api$/i, '');
 };
 
 const readStoredBackendUrl = () => {
@@ -31,7 +32,16 @@ const resolveBackendUrl = () => {
     }
 
     const stored = readStoredBackendUrl();
-    if (stored) return stored;
+    if (stored) {
+      const lower = stored.toLowerCase();
+      const isLocalStored =
+        lower.includes('://localhost') ||
+        lower.includes('://127.0.0.1') ||
+        lower.startsWith('capacitor://');
+      if (!isLocalStored) {
+        return stored;
+      }
+    }
   }
 
   const configured = (process.env.REACT_APP_BACKEND_URL || '').trim();
@@ -139,6 +149,7 @@ function App() {
   const awaitingAudioRef = useRef(false);
   const resumeSafetyTimeoutRef = useRef(null);
   const configLoadingRef = useRef(false);
+  const didAutoFallbackRef = useRef(false);
   const micEnabledRef = useRef(false);
   const perceptionEnabledRef = useRef(perceptionEnabled);
   const currentFaceIdRef = useRef(null);
@@ -220,14 +231,33 @@ function App() {
       if (profileNames.length > 0) {
         setActiveAvatar((prev) => prev || profileNames[0]);
       }
+      didAutoFallbackRef.current = false;
       setError(null);
     } catch (err) {
       setConfig(null);
+      const normalizedCurrent = normalizeBackendUrl(backendUrl);
+      const normalizedDefault = normalizeBackendUrl(DEFAULT_CLOUD_BACKEND_URL);
+      if (
+        !didAutoFallbackRef.current &&
+        normalizedCurrent &&
+        normalizedCurrent !== normalizedDefault
+      ) {
+        didAutoFallbackRef.current = true;
+        try {
+          window.localStorage.setItem(BACKEND_URL_STORAGE_KEY, normalizedDefault);
+        } catch {
+          // Ignore storage errors and continue.
+        }
+        setBackendInput(normalizedDefault);
+        setBackendUrl(normalizedDefault);
+        setError('Backend URL varsayılana alındı, tekrar bağlanılıyor...');
+        return;
+      }
       setError('Sunucuya bağlanılamadı. Otomatik yeniden deneniyor...');
     } finally {
       configLoadingRef.current = false;
     }
-  }, [API]);
+  }, [API, backendUrl]);
 
   // Fetch config when backend changes
   useEffect(() => {

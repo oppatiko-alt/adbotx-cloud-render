@@ -4,6 +4,7 @@ import PerceptionService from './perception';
 
 const BACKEND_URL_STORAGE_KEY = 'adbotx.backend_url';
 const DEFAULT_CLOUD_BACKEND_URL = 'https://adbotx-cloud-render.onrender.com';
+const CONFIG_RETRY_INTERVAL_MS = 8000;
 
 const normalizeBackendUrl = (value) => {
   const raw = (value || '').trim();
@@ -128,6 +129,7 @@ function App() {
   const silenceTimeoutRef = useRef(null);
   const awaitingAudioRef = useRef(false);
   const resumeSafetyTimeoutRef = useRef(null);
+  const configLoadingRef = useRef(false);
   const micEnabledRef = useRef(false);
   const perceptionEnabledRef = useRef(perceptionEnabled);
   const currentFaceIdRef = useRef(null);
@@ -189,29 +191,15 @@ function App() {
     setBackendInput(backendUrl);
   }, [backendUrl]);
 
-  // Fetch config
-  useEffect(() => {
-    if (!backendUrl) {
-      setConfig(null);
-      setError('Cloud backend URL girmen gerekiyor');
-      return;
-    }
-    fetchConfig();
-  }, [backendUrl]);
-  
-  // Auto-start services when config is ready
-  useEffect(() => {
-    if (config && videoRef.current && audioRef.current) {
-      connectWebSocket();
-    }
-  }, [config]);
-  
-  const fetchConfig = async () => {
-    if (!API) {
-      setConfig(null);
+  const fetchConfig = useCallback(async () => {
+    if (!API || configLoadingRef.current) {
+      if (!API) {
+        setConfig(null);
+      }
       return;
     }
 
+    configLoadingRef.current = true;
     try {
       const res = await fetch(`${API}/config`);
       if (!res.ok) {
@@ -226,9 +214,37 @@ function App() {
       setError(null);
     } catch (err) {
       setConfig(null);
-      setError('Sunucuya bağlanılamadı. Backend URL kontrol et');
+      setError('Sunucuya bağlanılamadı. Otomatik yeniden deneniyor...');
+    } finally {
+      configLoadingRef.current = false;
     }
-  };
+  }, [API]);
+
+  // Fetch config when backend changes
+  useEffect(() => {
+    if (!backendUrl) {
+      setConfig(null);
+      setError('Cloud backend URL girmen gerekiyor');
+      return;
+    }
+    void fetchConfig();
+  }, [backendUrl, fetchConfig]);
+
+  // Retry config fetch while backend exists but config is missing.
+  useEffect(() => {
+    if (!backendUrl || config) return;
+    const retryId = setInterval(() => {
+      void fetchConfig();
+    }, CONFIG_RETRY_INTERVAL_MS);
+    return () => clearInterval(retryId);
+  }, [backendUrl, config, fetchConfig]);
+  
+  // Auto-start services when config is ready
+  useEffect(() => {
+    if (config && videoRef.current && audioRef.current) {
+      connectWebSocket();
+    }
+  }, [config, connectWebSocket]);
 
   const handlePerceptionSignal = useCallback((signal) => {
     const payload = activeAvatar ? { ...signal, active_avatar: activeAvatar } : signal;
@@ -1003,6 +1019,17 @@ function App() {
               <p className="mt-2 text-[10px] tracking-wide text-amber-300/70">
                 Cloud backend URL zorunlu
               </p>
+            )}
+            {backendUrl && !config && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => void fetchConfig()}
+                  className="px-3 py-1 rounded-full border border-cyan-400/70 text-[10px] uppercase tracking-widest text-cyan-300 bg-cyan-400/10"
+                >
+                  Yeniden Dene
+                </button>
+              </div>
             )}
             {Object.keys(config?.avatar_profiles || {}).length > 0 && (
               <div className="mt-3">

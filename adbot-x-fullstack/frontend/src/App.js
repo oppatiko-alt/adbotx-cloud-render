@@ -87,12 +87,21 @@ const STATES = {
   SPEAKING: 'speaking',
 };
 
+const createSessionId = () => {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  const now = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2);
+  return `sess_${now}_${rand}`;
+};
+
 function App() {
   const [state, setState] = useState(STATES.IDLE);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [response, setResponse] = useState('');
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId] = useState(() => createSessionId());
   const [config, setConfig] = useState(null);
   const [error, setError] = useState(null);
   const [backendUrl, setBackendUrl] = useState(INITIAL_BACKEND_URL);
@@ -244,7 +253,7 @@ function App() {
     if (config && videoRef.current && audioRef.current) {
       connectWebSocket();
     }
-  }, [config, connectWebSocket]);
+  }, [config]);
 
   const handlePerceptionSignal = useCallback((signal) => {
     const payload = activeAvatar ? { ...signal, active_avatar: activeAvatar } : signal;

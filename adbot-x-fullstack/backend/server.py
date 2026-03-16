@@ -403,6 +403,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 app.include_router(api_router)
 
+
+@app.get("/")
+async def app_root():
+    return {"status": "ok", "service": "AVM Robot API", "health": "/api/health"}
+
 # Browsers reject credentialed CORS with wildcard origin.
 allow_credentials = "*" not in settings.cors_origins
 
